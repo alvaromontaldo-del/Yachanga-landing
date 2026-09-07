@@ -1,0 +1,11 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "LXWW348236.com.cuervolinkedout.tuchanga",
+        "paths": ["/post/*"]
+      }
+    ]
+  }
+}

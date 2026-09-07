@@ -39,7 +39,7 @@ export function Hero({ onRegisterProfessional, onFindProfessional }: Props) {
             Regístrate como Profesional
           </a>
           <a
-            href="#cliente"
+            href="#buscar"
             onClick={onFindProfessional}
             className="inline-flex min-h-[52px] items-center justify-center rounded-xl border-2 border-yachanga-primary bg-yachanga-surface px-8 text-base font-semibold text-yachanga-primary transition-colors hover:bg-yachanga-primary/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-yachanga-primary"
           >

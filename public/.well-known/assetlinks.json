@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.cuervolinkedout.tuchanga",
+      "sha256_cert_fingerprints": [
+        "90:4B:91:75:A2:5E:C6:60:34:E8:BA:29:86:C7:1F:93:B9:01:D4:1C:1D:44:4C:B0:93:E8:0D:AE:C5:7E:17:3A"
+      ]
+    }
+  }
+]
