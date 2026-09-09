@@ -55,13 +55,13 @@ function readAuthParams(): {
  * /cuenta-confirmada:
  * - Con token_hash (plantilla anti-prefetch): el usuario confirma con un click humano → verifyOtp.
  * - Si Supabase redirigió con error: se muestra el fallo (no se abre la app fingiendo éxito).
- * - Tras OK: móvil abre login de la app; PC muestra modal.
+ * - Tras OK: un solo diálogo (con X / Entendido); en móvil además deep-link al login.
  */
 export function AccountConfirmedHandler() {
   const onConfirmPath = useMemo(() => isAccountConfirmPath(), []);
   const [status, setStatus] = useState<UiStatus>('idle');
   const [message, setMessage] = useState('');
-  const [showDesktopModal, setShowDesktopModal] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
   const [params, setParams] = useState<ReturnType<typeof readAuthParams> | null>(null);
 
   useEffect(() => {
@@ -86,22 +86,35 @@ export function AccountConfirmedHandler() {
     }
 
     // Redirect clásico de ConfirmationURL sin token en query: el verify ya ocurrió en Supabase.
-    // Si email_confirmed quedó OK, solo guiamos al login; si no, el login lo va a decir.
     setStatus('success');
     setMessage('Si tu correo quedó validado, ya podés ingresar a la app.');
     if (isMobileUserAgent()) {
       window.setTimeout(() => {
         window.location.href = APP_LOGIN_DEEP_LINK;
       }, 400);
-    } else {
-      setShowDesktopModal(true);
     }
   }, [onConfirmPath]);
+
+  const dismiss = useCallback(() => {
+    setDismissed(true);
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('token_hash');
+      url.searchParams.delete('token');
+      url.searchParams.delete('type');
+      url.searchParams.delete('code');
+      url.searchParams.delete('error');
+      url.searchParams.delete('error_description');
+      url.searchParams.delete('error_code');
+      window.history.replaceState({}, '', url.pathname === '/cuenta-confirmada' ? '/' : url.pathname);
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   const finishSuccess = useCallback(() => {
     setStatus('success');
     setMessage('¡Listo! Tu correo quedó validado.');
-    // Limpiar token de la URL (no reenviar / no quedar expuesto).
     try {
       const url = new URL(window.location.href);
       url.searchParams.delete('token_hash');
@@ -115,8 +128,6 @@ export function AccountConfirmedHandler() {
 
     if (isMobileUserAgent()) {
       window.location.href = APP_LOGIN_DEEP_LINK;
-    } else {
-      setShowDesktopModal(true);
     }
   }, []);
 
@@ -157,7 +168,6 @@ export function AccountConfirmedHandler() {
         return;
       }
       lastError = error.message;
-      // Token ya usado / inválido: no seguir probando otros types.
       if (/expired|invalid|otp/i.test(error.message)) break;
     }
 
@@ -169,118 +179,102 @@ export function AccountConfirmedHandler() {
     );
   }, [params, finishSuccess]);
 
-  if (!onConfirmPath) return null;
+  if (!onConfirmPath || dismissed) return null;
+
+  const canClose = status === 'success' || status === 'error';
 
   return (
-    <>
-      <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-4 sm:items-center">
-        <div
-          className="relative w-full max-w-md rounded-2xl bg-yachanga-surface p-6 shadow-xl sm:p-8"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="account-confirm-title"
-        >
-          {status === 'error' ? (
-            <XCircle className="h-10 w-10 text-yachanga-primary" aria-hidden />
-          ) : status === 'success' ? (
-            <CheckCircle2 className="h-10 w-10 text-emerald-600" aria-hidden />
-          ) : null}
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-4 sm:items-center"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="account-confirm-title"
+      onClick={canClose ? dismiss : undefined}
+    >
+      <div
+        className="relative w-full max-w-md rounded-2xl bg-yachanga-surface p-6 shadow-xl sm:p-8"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {canClose ? (
+          <button
+            type="button"
+            onClick={dismiss}
+            className="absolute right-3 top-3 rounded-lg p-2 text-yachanga-muted hover:bg-yachanga-bg hover:text-yachanga-text"
+            aria-label="Cerrar"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        ) : null}
 
-          <p className="mt-3 text-sm font-semibold uppercase tracking-wide text-yachanga-primary">
-            {status === 'error' ? 'No se pudo confirmar' : 'Confirmación de cuenta'}
+        {status === 'error' ? (
+          <XCircle className="h-10 w-10 text-yachanga-primary" aria-hidden />
+        ) : status === 'success' ? (
+          <CheckCircle2 className="h-10 w-10 text-emerald-600" aria-hidden />
+        ) : null}
+
+        <p className="mt-3 text-sm font-semibold uppercase tracking-wide text-yachanga-primary">
+          {status === 'error' ? 'No se pudo confirmar' : 'Confirmación de cuenta'}
+        </p>
+        <h2
+          id="account-confirm-title"
+          className="mt-2 text-xl font-extrabold text-yachanga-text sm:text-2xl"
+        >
+          {status === 'error'
+            ? 'Revisá el enlace'
+            : status === 'success'
+              ? '¡Cuenta confirmada!'
+              : 'Validá tu correo'}
+        </h2>
+        <p className="mt-3 text-sm leading-relaxed text-yachanga-muted sm:text-base">{message}</p>
+
+        {status === 'ready' || status === 'verifying' ? (
+          <button
+            type="button"
+            disabled={status === 'verifying'}
+            onClick={() => void confirmAccount()}
+            className="mt-6 inline-flex w-full min-h-[48px] items-center justify-center gap-2 rounded-full bg-yachanga-primary px-6 text-base font-bold text-white transition hover:bg-yachanga-primary/90 disabled:opacity-70"
+          >
+            {status === 'verifying' ? (
+              <>
+                <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
+                Confirmando…
+              </>
+            ) : (
+              'Confirmar y abrir YaChanga'
+            )}
+          </button>
+        ) : null}
+
+        {status === 'success' && isMobileUserAgent() ? (
+          <a
+            href={APP_LOGIN_DEEP_LINK}
+            className="mt-6 inline-flex w-full min-h-[48px] items-center justify-center rounded-full bg-yachanga-primary px-6 text-base font-bold text-white transition hover:bg-yachanga-primary/90"
+          >
+            Abrir app e ingresar
+          </a>
+        ) : null}
+
+        {canClose ? (
+          <button
+            type="button"
+            onClick={dismiss}
+            className={
+              status === 'success' && isMobileUserAgent()
+                ? 'mt-3 inline-flex w-full min-h-[48px] items-center justify-center rounded-full border border-yachanga-border bg-transparent px-6 text-base font-bold text-yachanga-text transition hover:bg-yachanga-bg'
+                : 'mt-6 inline-flex w-full min-h-[48px] items-center justify-center rounded-full bg-yachanga-primary px-6 text-base font-bold text-white transition hover:bg-yachanga-primary/90'
+            }
+          >
+            Entendido
+          </button>
+        ) : null}
+
+        {status === 'error' ? (
+          <p className="mt-4 text-sm text-yachanga-muted">
+            Si el enlace falló porque el correo lo abrió solo (Gmail/Outlook), pedí un nuevo mail
+            de confirmación o escribí a soporte.
           </p>
-          <h2
-            id="account-confirm-title"
-            className="mt-2 text-xl font-extrabold text-yachanga-text sm:text-2xl"
-          >
-            {status === 'error'
-              ? 'Revisá el enlace'
-              : status === 'success'
-                ? '¡Cuenta confirmada!'
-                : 'Validá tu correo'}
-          </h2>
-          <p className="mt-3 text-sm leading-relaxed text-yachanga-muted sm:text-base">{message}</p>
-
-          {status === 'ready' || status === 'verifying' ? (
-            <button
-              type="button"
-              disabled={status === 'verifying'}
-              onClick={() => void confirmAccount()}
-              className="mt-6 inline-flex w-full min-h-[48px] items-center justify-center gap-2 rounded-full bg-yachanga-primary px-6 text-base font-bold text-white transition hover:bg-yachanga-primary/90 disabled:opacity-70"
-            >
-              {status === 'verifying' ? (
-                <>
-                  <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
-                  Confirmando…
-                </>
-              ) : (
-                'Confirmar y abrir YaChanga'
-              )}
-            </button>
-          ) : null}
-
-          {status === 'success' && isMobileUserAgent() ? (
-            <a
-              href={APP_LOGIN_DEEP_LINK}
-              className="mt-6 inline-flex w-full min-h-[48px] items-center justify-center rounded-full bg-yachanga-primary px-6 text-base font-bold text-white transition hover:bg-yachanga-primary/90"
-            >
-              Abrir app e ingresar
-            </a>
-          ) : null}
-
-          {status === 'error' ? (
-            <p className="mt-4 text-sm text-yachanga-muted">
-              Si el enlace falló porque el correo lo abrió solo (Gmail/Outlook), pedí un nuevo mail
-              de confirmación o escribí a soporte.
-            </p>
-          ) : null}
-        </div>
+        ) : null}
       </div>
-
-      {showDesktopModal ? (
-        <div
-          className="fixed inset-0 z-[60] flex items-end justify-center bg-black/50 p-4 sm:items-center"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="account-confirmed-title"
-          onClick={() => setShowDesktopModal(false)}
-        >
-          <div
-            className="relative w-full max-w-md rounded-2xl bg-yachanga-surface p-6 shadow-xl sm:p-8"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              type="button"
-              onClick={() => setShowDesktopModal(false)}
-              className="absolute right-3 top-3 rounded-lg p-2 text-yachanga-muted hover:bg-yachanga-bg hover:text-yachanga-text"
-              aria-label="Cerrar"
-            >
-              <X className="h-5 w-5" />
-            </button>
-
-            <p className="text-sm font-semibold uppercase tracking-wide text-yachanga-primary">
-              Cuenta confirmada
-            </p>
-            <h2
-              id="account-confirmed-title"
-              className="mt-2 text-xl font-extrabold text-yachanga-text sm:text-2xl"
-            >
-              ¡Listo! Ya podés usar YaChanga
-            </h2>
-            <p className="mt-3 text-sm leading-relaxed text-yachanga-muted sm:text-base">
-              Tu correo quedó validado. Abrí la app YaChanga e iniciá sesión con el mismo email y
-              contraseña con los que te registraste.
-            </p>
-            <button
-              type="button"
-              onClick={() => setShowDesktopModal(false)}
-              className="mt-6 inline-flex w-full min-h-[48px] items-center justify-center rounded-full bg-yachanga-primary px-6 text-base font-bold text-white transition hover:bg-yachanga-primary/90"
-            >
-              Entendido
-            </button>
-          </div>
-        </div>
-      ) : null}
-    </>
+    </div>
   );
 }
