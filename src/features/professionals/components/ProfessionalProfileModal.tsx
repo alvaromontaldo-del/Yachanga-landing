@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { MapPin, X } from 'lucide-react';
 import { fetchPublicProfessionalDetail } from '../api';
 import type { PublicProfessional, PublicProfessionalDetail } from '../types';
+import { canShowWorkerReputation } from '../workerReputation';
 import { StarRatingDisplay } from './StarRatingDisplay';
 
 type Props = {
@@ -88,7 +89,11 @@ export function ProfessionalProfileModal({ professional, open, onClose, onContac
               </h2>
               <p className="truncate text-sm font-semibold text-yachanga-primary">{profile.oficio}</p>
               <div className="mt-1">
-                <StarRatingDisplay rating={profile.rating} reviewCount={profile.resenas_count} />
+                <StarRatingDisplay
+                  rating={profile.rating}
+                  reviewCount={profile.resenas_count}
+                  completedJobs={profile.total_jobs_done}
+                />
               </div>
               {profile.zona ? (
                 <p className="mt-1 inline-flex items-center gap-1 text-xs text-yachanga-muted">
@@ -161,7 +166,11 @@ export function ProfessionalProfileModal({ professional, open, onClose, onContac
                 <h3 className="text-sm font-bold uppercase tracking-wide text-yachanga-muted">
                   Reseñas
                 </h3>
-                {(detail?.resenas?.length ?? 0) === 0 ? (
+                {!canShowWorkerReputation(profile.total_jobs_done) ? (
+                  <p className="mt-2 text-sm text-yachanga-muted">
+                    Profesional nuevo: las reseñas se muestran al completar al menos 2 trabajos.
+                  </p>
+                ) : (detail?.resenas?.length ?? 0) === 0 ? (
                   <p className="mt-2 text-sm text-yachanga-muted">Todavía no hay reseñas escritas.</p>
                 ) : (
                   <ul className="mt-3 space-y-3">

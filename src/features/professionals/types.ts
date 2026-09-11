@@ -6,6 +6,8 @@ export type PublicProfessional = {
   oficio: string;
   rating: number;
   resenas_count: number;
+  /** Trabajos finalizados; &lt; 2 → badge "Nuevo". */
+  total_jobs_done: number;
   avatar: string | null;
   zona: string | null;
   all_trades?: string[];

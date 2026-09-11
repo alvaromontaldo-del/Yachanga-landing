@@ -38,7 +38,9 @@ export function ProfessionalCard({ professional, onOpenProfile, onContact }: Pro
             </div>
           )}
           <div className="min-w-0 flex-1">
-            <h3 className="truncate text-lg font-bold text-yachanga-text">{professional.nombre}</h3>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <h3 className="truncate text-lg font-bold text-yachanga-text">{professional.nombre}</h3>
+            </div>
             <p className="mt-0.5 truncate text-sm font-semibold text-yachanga-primary">
               {professional.oficio}
             </p>
@@ -46,6 +48,7 @@ export function ProfessionalCard({ professional, onOpenProfile, onContact }: Pro
               <StarRatingDisplay
                 rating={professional.rating}
                 reviewCount={professional.resenas_count}
+                completedJobs={professional.total_jobs_done}
               />
             </div>
             {professional.zona ? (
