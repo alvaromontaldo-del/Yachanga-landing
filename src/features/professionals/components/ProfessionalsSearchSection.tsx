@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { SearchX } from 'lucide-react';
+import { AlertCircle, SearchX } from 'lucide-react';
 import { listPublicCategories, searchPublicProfessionals } from '../api';
 import { useDebouncedValue } from '../hooks';
 import type { PublicProfessional } from '../types';
@@ -14,40 +14,54 @@ export function ProfessionalsSearchSection() {
   const [category, setCategory] = useState('');
   const [zona, setZona] = useState('');
   const [categories, setCategories] = useState<string[]>([]);
-  const [results, setResults] = useState<PublicProfessional[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [retryToken, setRetryToken] = useState(0);
+  const [snapshot, setSnapshot] = useState<{
+    key: string;
+    error: boolean;
+    professionals: PublicProfessional[];
+  } | null>(null);
   const [profileTarget, setProfileTarget] = useState<PublicProfessional | null>(null);
   const [contactTarget, setContactTarget] = useState<PublicProfessional | null>(null);
 
   const debouncedQuery = useDebouncedValue(query, 350);
   const debouncedZona = useDebouncedValue(zona, 350);
+  const hasFilters = Boolean(query.trim() || category.trim() || zona.trim());
+  const requestKey = `${debouncedQuery}\n${category}\n${debouncedZona}\n${retryToken}`;
+  const current = snapshot?.key === requestKey ? snapshot : null;
+  const loading = current == null;
+  const searchError = current?.error ?? false;
+  const results = current?.professionals ?? [];
 
   useEffect(() => {
     let cancelled = false;
     void listPublicCategories().then((cats) => {
-      if (!cancelled) setCategories(cats);
+      if (cancelled || !cats) return;
+      setCategories(cats);
     });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [retryToken]);
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
+    const key = requestKey;
     void searchPublicProfessionals({
       query: debouncedQuery,
       category,
       zona: debouncedZona,
-    }).then((rows) => {
+    }).then((result) => {
       if (cancelled) return;
-      setResults(rows);
-      setLoading(false);
+      if (!result.ok) {
+        setSnapshot({ key, error: true, professionals: [] });
+        return;
+      }
+      setSnapshot({ key, error: false, professionals: result.professionals });
     });
     return () => {
       cancelled = true;
     };
-  }, [debouncedQuery, category, debouncedZona]);
+  }, [requestKey, debouncedQuery, category, debouncedZona]);
 
   const openContact = useCallback((p: PublicProfessional) => {
     setContactTarget(p);
@@ -90,27 +104,50 @@ export function ProfessionalsSearchSection() {
         <div className="mt-8">
           {loading ? (
             <ProfessionalsGridSkeleton />
+          ) : searchError ? (
+            <div
+              className="flex flex-col items-center rounded-2xl border border-dashed border-yachanga-border bg-yachanga-bg/40 px-6 py-16 text-center"
+              role="alert"
+            >
+              <AlertCircle className="h-12 w-12 text-yachanga-primary" aria-hidden />
+              <h3 className="mt-4 text-lg font-bold text-yachanga-text">
+                No pudimos cargar los profesionales
+              </h3>
+              <p className="mt-2 max-w-md text-sm text-yachanga-muted">
+                Hubo un problema al buscar. Probá de nuevo en un momento.
+              </p>
+              <button
+                type="button"
+                onClick={() => setRetryToken((token) => token + 1)}
+                className="mt-6 inline-flex min-h-[44px] items-center justify-center rounded-xl bg-yachanga-primary px-5 text-sm font-semibold text-white hover:bg-yachanga-primary-dark"
+              >
+                Reintentar
+              </button>
+            </div>
           ) : results.length === 0 ? (
             <div className="flex flex-col items-center rounded-2xl border border-dashed border-yachanga-border bg-yachanga-bg/40 px-6 py-16 text-center">
               <SearchX className="h-12 w-12 text-yachanga-muted" aria-hidden />
               <h3 className="mt-4 text-lg font-bold text-yachanga-text">
-                No se encontraron profesionales
+                {hasFilters ? 'No se encontraron profesionales' : 'Todavía no hay profesionales'}
               </h3>
               <p className="mt-2 max-w-md text-sm text-yachanga-muted">
-                Probá con otro oficio, nombre o zona. También podés limpiar los filtros y explorar
-                todos los perfiles publicados.
+                {hasFilters
+                  ? 'Probá con otro oficio, nombre o zona. También podés limpiar los filtros y explorar todos los perfiles publicados.'
+                  : 'Cuando haya perfiles publicados, los vas a ver acá.'}
               </p>
-              <button
-                type="button"
-                onClick={() => {
-                  setQuery('');
-                  setCategory('');
-                  setZona('');
-                }}
-                className="mt-6 inline-flex min-h-[44px] items-center justify-center rounded-xl border-2 border-yachanga-primary px-5 text-sm font-semibold text-yachanga-primary hover:bg-yachanga-primary/5"
-              >
-                Limpiar filtros
-              </button>
+              {hasFilters ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setQuery('');
+                    setCategory('');
+                    setZona('');
+                  }}
+                  className="mt-6 inline-flex min-h-[44px] items-center justify-center rounded-xl border-2 border-yachanga-primary px-5 text-sm font-semibold text-yachanga-primary hover:bg-yachanga-primary/5"
+                >
+                  Limpiar filtros
+                </button>
+              ) : null}
             </div>
           ) : (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

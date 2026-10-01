@@ -5,147 +5,92 @@ import type {
   PublicSkill,
 } from './types';
 
-const MOCK_PROFESSIONALS: PublicProfessional[] = [
-  {
-    id: 'mock-1',
-    nombre: 'Juan',
-    oficio: 'Electricista Matriculado',
-    rating: 4.9,
-    resenas_count: 28,
-    total_jobs_done: 12,
-    avatar: 'https://i.pravatar.cc/150?u=juan-elec',
-    zona: 'San Nicolás',
-    all_trades: ['Electricista Matriculado', 'Instalaciones'],
-  },
-  {
-    id: 'mock-2',
-    nombre: 'María',
-    oficio: 'Gasista',
-    rating: 4.8,
-    resenas_count: 15,
-    total_jobs_done: 8,
-    avatar: 'https://i.pravatar.cc/150?u=maria-gas',
-    zona: 'Rosario',
-    all_trades: ['Gasista'],
-  },
-  {
-    id: 'mock-3',
-    nombre: 'Carlos',
-    oficio: 'Plomero',
-    rating: 4.6,
-    resenas_count: 42,
-    total_jobs_done: 20,
-    avatar: 'https://i.pravatar.cc/150?u=carlos-plom',
-    zona: 'Villa Constitución',
-    all_trades: ['Plomero', 'Destapaciones'],
-  },
-  {
-    id: 'mock-4',
-    nombre: 'Lucía',
-    oficio: 'Pintora',
-    rating: 5,
-    resenas_count: 1,
-    total_jobs_done: 1,
-    avatar: 'https://i.pravatar.cc/150?u=lucia-pint',
-    zona: 'San Nicolás',
-    all_trades: ['Pintora'],
-  },
-  {
-    id: 'mock-5',
-    nombre: 'Diego',
-    oficio: 'Albañil',
-    rating: 4.7,
-    resenas_count: 21,
-    total_jobs_done: 15,
-    avatar: 'https://i.pravatar.cc/150?u=diego-alb',
-    zona: 'Pergamino',
-    all_trades: ['Albañil', 'Refacciones'],
-  },
-  {
-    id: 'mock-6',
-    nombre: 'Ana',
-    oficio: 'Aire acondicionado',
-    rating: 4.5,
-    resenas_count: 0,
-    total_jobs_done: 0,
-    avatar: 'https://i.pravatar.cc/150?u=ana-ac',
-    zona: 'Rosario',
-    all_trades: ['Aire acondicionado'],
-  },
-];
+/**
+ * La vidriera pública no inventa profesionales.
+ * Si la RPC falla, el llamador muestra un error con reintento.
+ * Apellido, lat y lng pueden no venir (la RPC anónima deja de exponerlos):
+ * el nombre usa el nombre de pila y, si existe, solo la inicial del apellido.
+ * La distancia se muestra solo si el backend manda un valor grueso; nunca se calcula desde coordenadas.
+ */
 
-const MOCK_DETAILS: Record<string, PublicProfessionalDetail> = {
-  'mock-1': {
-    profile: {
-      ...MOCK_PROFESSIONALS[0],
-      descripcion:
-        'Electricista matriculado con más de 10 años de experiencia en instalaciones domiciliarias e industriales. Trabajo prolijo y con garantía.',
-    },
-    habilidades: [
-      {
-        nombre: 'Electricista Matriculado',
-        descripcion: 'Tableros, cableado, iluminación LED y certificaciones.',
-        anos_experiencia: 10,
-        es_principal: true,
-      },
-      {
-        nombre: 'Instalaciones',
-        descripcion: 'Montaje de tomas, circuitos y puesta a tierra.',
-        anos_experiencia: 8,
-        es_principal: false,
-      },
-    ],
-    resenas: [
-      {
-        id: 'r1',
-        rating: 5,
-        comentario: 'Excelente trabajo, llegó puntual y dejó todo impecable.',
-        fecha: '2026-07-12T10:00:00Z',
-        cliente: 'Sofía',
-      },
-      {
-        id: 'r2',
-        rating: 5,
-        comentario: 'Muy claro con el presupuesto y cumplió los plazos.',
-        fecha: '2026-06-03T15:30:00Z',
-        cliente: 'Martín',
-      },
-    ],
-  },
-};
+export type ProfessionalsSearchResult =
+  | { ok: true; professionals: PublicProfessional[] }
+  | { ok: false };
 
-function normalizeProfessional(row: Record<string, unknown>): PublicProfessional {
-  const rating = Number(row.rating ?? 0);
-  return {
-    id: String(row.id ?? ''),
-    nombre: String(row.nombre ?? 'Profesional').trim() || 'Profesional',
-    oficio: String(row.oficio ?? 'Servicios').trim() || 'Servicios',
-    rating: Number.isFinite(rating) ? Math.max(0, Math.min(5, rating)) : 0,
-    resenas_count: Math.max(0, Math.floor(Number(row.resenas_count) || 0)),
-    total_jobs_done: Math.max(0, Math.floor(Number(row.total_jobs_done) || 0)),
-    avatar: row.avatar ? String(row.avatar) : null,
-    zona: row.zona ? String(row.zona) : null,
-    all_trades: Array.isArray(row.all_trades)
-      ? row.all_trades.map((t) => String(t))
-      : undefined,
-  };
+export type ProfessionalDetailResult =
+  | { ok: true; detail: PublicProfessionalDetail | null }
+  | { ok: false };
+
+const FICTITIOUS_AVATAR =
+  /pravatar\.cc|ui-avatars\.com|placehold\.co|via\.placeholder\.com|placeholder\.com|picsum\.photos/i;
+
+function textOrNull(value: unknown): string | null {
+  if (value == null) return null;
+  const text = String(value).trim();
+  return text.length > 0 ? text : null;
 }
 
-function filterMock(params: {
-  query: string;
-  category: string;
-  zona: string;
-}): PublicProfessional[] {
-  const q = params.query.trim().toLowerCase();
-  const cat = params.category.trim().toLowerCase();
-  const zona = params.zona.trim().toLowerCase();
-  return MOCK_PROFESSIONALS.filter((p) => {
-    const hay = `${p.nombre} ${p.oficio} ${(p.all_trades ?? []).join(' ')}`.toLowerCase();
-    if (q && !hay.includes(q)) return false;
-    if (cat && !(p.all_trades ?? [p.oficio]).some((t) => t.toLowerCase() === cat)) return false;
-    if (zona && !(p.zona ?? '').toLowerCase().includes(zona)) return false;
-    return true;
-  });
+function lastNameInitial(value: unknown): string | null {
+  const raw = textOrNull(value)?.replace(/\.$/, '') ?? '';
+  if (!raw) return null;
+  const first = Array.from(raw)[0];
+  if (!first || !/\p{L}/u.test(first)) return null;
+  return `${first.toLocaleUpperCase('es-AR')}.`;
+}
+
+function publicDisplayName(row: Record<string, unknown>): string {
+  const first = textOrNull(row.nombre);
+  const initial = lastNameInitial(
+    row.apellido_inicial ?? row.inicial_apellido ?? row.last_initial ?? row.apellido,
+  );
+  if (first && initial) return `${first} ${initial}`;
+  if (first) return first;
+  if (initial) return initial;
+  return 'Profesional';
+}
+
+function publicAvatar(value: unknown): string | null {
+  const url = textOrNull(value);
+  if (!url || FICTITIOUS_AVATAR.test(url)) return null;
+  return url;
+}
+
+function coarseDistance(row: Record<string, unknown>): string | null {
+  for (const candidate of [row.distancia, row.distancia_aprox, row.distance_label]) {
+    const text = textOrNull(candidate);
+    if (text && !/^-?\d+(?:[.,]\d+)?$/.test(text)) return text;
+  }
+
+  const numericSource = row.distance_km ?? row.distancia_km ?? row.distancia ?? row.distancia_aprox;
+  if (numericSource == null || numericSource === '') return null;
+  const kilometers =
+    typeof numericSource === 'number'
+      ? numericSource
+      : Number(String(numericSource).replace(',', '.'));
+  if (!Number.isFinite(kilometers) || kilometers < 0) return null;
+  const rounded = Math.round(kilometers);
+  if (rounded < 1) return 'A menos de 1 km';
+  return `A unos ${rounded} km`;
+}
+
+export function normalizeProfessional(row: Record<string, unknown>): PublicProfessional {
+  const rating = Number(row.rating ?? row.rating_average ?? 0);
+  const trades = Array.isArray(row.all_trades)
+    ? row.all_trades.map((trade) => String(trade).trim()).filter(Boolean)
+    : undefined;
+
+  return {
+    id: String(row.id ?? row.profile_id ?? '').trim(),
+    nombre: publicDisplayName(row),
+    oficio: textOrNull(row.oficio) ?? textOrNull(row.primary_trade) ?? 'Servicios',
+    rating: Number.isFinite(rating) ? Math.max(0, Math.min(5, rating)) : 0,
+    resenas_count: Math.max(0, Math.floor(Number(row.resenas_count ?? row.review_count) || 0)),
+    total_jobs_done: Math.max(0, Math.floor(Number(row.total_jobs_done) || 0)),
+    avatar: publicAvatar(row.avatar ?? row.avatar_url),
+    zona: textOrNull(row.zona),
+    distancia: coarseDistance(row),
+    all_trades: trades,
+  };
 }
 
 function supabaseConfig(): { url: string; anon: string } | null {
@@ -155,126 +100,116 @@ function supabaseConfig(): { url: string; anon: string } | null {
   return { url, anon };
 }
 
+type RpcResult<T> = { ok: true; data: T } | { ok: false };
+
 /** Fetch a RPC PostgREST sin sesión de usuario (solo anon key). */
-async function rpcUnauthenticated<T>(
-  fn: string,
-  body: Record<string, unknown>,
-): Promise<T | null> {
+async function rpcUnauthenticated<T>(fn: string, body: Record<string, unknown>): Promise<RpcResult<T>> {
   const cfg = supabaseConfig();
-  if (!cfg) return null;
+  if (!cfg) return { ok: false };
 
-  const res = await fetch(`${cfg.url}/rest/v1/rpc/${fn}`, {
-    method: 'POST',
-    headers: {
-      apikey: cfg.anon,
-      Authorization: `Bearer ${cfg.anon}`,
-      'Content-Type': 'application/json',
-      Prefer: 'return=representation',
-    },
-    body: JSON.stringify(body),
-  });
+  try {
+    const res = await fetch(`${cfg.url}/rest/v1/rpc/${fn}`, {
+      method: 'POST',
+      headers: {
+        apikey: cfg.anon,
+        Authorization: `Bearer ${cfg.anon}`,
+        'Content-Type': 'application/json',
+        Prefer: 'return=representation',
+      },
+      body: JSON.stringify(body),
+    });
 
-  if (!res.ok) {
-    console.warn(`[professionals] RPC ${fn} failed`, res.status);
-    return null;
+    if (!res.ok) {
+      console.warn(`[professionals] RPC ${fn} failed`, res.status);
+      return { ok: false };
+    }
+
+    return { ok: true, data: (await res.json()) as T };
+  } catch (error) {
+    console.warn(`[professionals] RPC ${fn} failed`, error);
+    return { ok: false };
   }
-  return (await res.json()) as T;
 }
 
 export async function searchPublicProfessionals(params: {
   query: string;
   category: string;
   zona: string;
-}): Promise<PublicProfessional[]> {
-  const rows = await rpcUnauthenticated<Record<string, unknown>[]>('search_workers_public', {
+}): Promise<ProfessionalsSearchResult> {
+  const result = await rpcUnauthenticated<unknown>('search_workers_public', {
     p_query: params.query.trim(),
     p_category: params.category.trim() || null,
     p_zona: params.zona.trim() || null,
     p_limit: 48,
   });
 
-  if (!rows) {
-    return filterMock(params);
-  }
+  if (!result.ok || !Array.isArray(result.data)) return { ok: false };
 
-  return rows.map(normalizeProfessional).filter((p) => Boolean(p.id));
+  return {
+    ok: true,
+    professionals: result.data
+      .filter((row): row is Record<string, unknown> => Boolean(row) && typeof row === 'object')
+      .map((row) => normalizeProfessional(row))
+      .filter((professional) => Boolean(professional.id)),
+  };
 }
 
-export async function listPublicCategories(): Promise<string[]> {
-  const rows = await rpcUnauthenticated<Array<{ nombre?: string }>>(
-    'list_public_worker_categories',
-    {},
-  );
+/** `null` si la RPC falla. Un arreglo vacío es una respuesta real, no un error. */
+export async function listPublicCategories(): Promise<string[] | null> {
+  const result = await rpcUnauthenticated<unknown>('list_public_worker_categories', {});
+  if (!result.ok || !Array.isArray(result.data)) return null;
 
-  if (!rows) {
-    return [...new Set(MOCK_PROFESSIONALS.flatMap((p) => p.all_trades ?? [p.oficio]))].sort((a, b) =>
-      a.localeCompare(b, 'es'),
-    );
-  }
-
-  return rows
-    .map((r) => String(r.nombre ?? '').trim())
+  return result.data
+    .map((row) => textOrNull(row && typeof row === 'object' ? (row as { nombre?: unknown }).nombre : null) ?? '')
     .filter(Boolean)
     .sort((a, b) => a.localeCompare(b, 'es'));
 }
 
-export async function fetchPublicProfessionalDetail(
-  id: string,
-): Promise<PublicProfessionalDetail | null> {
-  if (id.startsWith('mock-')) {
-    const base = MOCK_DETAILS[id];
-    if (base) return base;
-    const card = MOCK_PROFESSIONALS.find((p) => p.id === id);
-    if (!card) return null;
-    return {
-      profile: {
-        ...card,
-        descripcion: `${card.oficio} de confianza en ${card.zona ?? 'tu zona'}.`,
-      },
-      habilidades: [
-        {
-          nombre: card.oficio,
-          descripcion: 'Servicios a medida.',
-          anos_experiencia: null,
-          es_principal: true,
-        },
-      ],
-      resenas: [] as PublicReview[],
-    };
-  }
+export async function fetchPublicProfessionalDetail(id: string): Promise<ProfessionalDetailResult> {
+  const workerId = id.trim();
+  if (!workerId) return { ok: true, detail: null };
 
-  const data = await rpcUnauthenticated<Record<string, unknown> | null>(
-    'get_public_worker_profile',
-    { p_worker_id: id },
-  );
+  const result = await rpcUnauthenticated<unknown>('get_public_worker_profile', {
+    p_worker_id: workerId,
+  });
 
-  if (!data || typeof data !== 'object') return null;
+  if (!result.ok) return { ok: false };
+  if (result.data == null) return { ok: true, detail: null };
+  if (typeof result.data !== 'object') return { ok: false };
 
-  const profileRaw = (data.profile ?? {}) as Record<string, unknown>;
+  const data = result.data as Record<string, unknown>;
+  const profileRaw =
+    data.profile && typeof data.profile === 'object' ? (data.profile as Record<string, unknown>) : {};
   const profile = {
-    ...normalizeProfessional(profileRaw),
-    descripcion: String(profileRaw.descripcion ?? '').trim(),
+    ...normalizeProfessional({ ...profileRaw, id: profileRaw.id ?? workerId }),
+    descripcion: textOrNull(profileRaw.descripcion) ?? '',
   };
 
   const habilidades: PublicSkill[] = Array.isArray(data.habilidades)
-    ? (data.habilidades as Record<string, unknown>[]).map((h) => ({
-        nombre: String(h.nombre ?? '').trim() || 'Oficio',
-        descripcion: String(h.descripcion ?? '').trim(),
-        anos_experiencia:
-          h.anos_experiencia == null ? null : Math.max(0, Math.floor(Number(h.anos_experiencia) || 0)),
-        es_principal: Boolean(h.es_principal),
-      }))
+    ? data.habilidades
+        .filter((skill): skill is Record<string, unknown> => Boolean(skill) && typeof skill === 'object')
+        .map((skill) => ({
+          nombre: textOrNull(skill.nombre) ?? 'Oficio',
+          descripcion: textOrNull(skill.descripcion) ?? '',
+          anos_experiencia:
+            skill.anos_experiencia == null
+              ? null
+              : Math.max(0, Math.floor(Number(skill.anos_experiencia) || 0)),
+          es_principal: Boolean(skill.es_principal),
+        }))
     : [];
 
   const resenas: PublicReview[] = Array.isArray(data.resenas)
-    ? (data.resenas as Record<string, unknown>[]).map((r) => ({
-        id: String(r.id ?? crypto.randomUUID()),
-        rating: Math.max(0, Math.min(5, Number(r.rating) || 0)),
-        comentario: String(r.comentario ?? '').trim(),
-        fecha: String(r.fecha ?? ''),
-        cliente: String(r.cliente ?? 'Cliente').trim() || 'Cliente',
-      }))
+    ? data.resenas
+        .filter((review): review is Record<string, unknown> => Boolean(review) && typeof review === 'object')
+        .map((review) => ({
+          id: textOrNull(review.id) ?? crypto.randomUUID(),
+          rating: Math.max(0, Math.min(5, Number(review.rating) || 0)),
+          comentario: textOrNull(review.comentario) ?? '',
+          fecha: textOrNull(review.fecha) ?? '',
+          cliente: textOrNull(review.cliente) ?? 'Cliente',
+        }))
     : [];
 
-  return { profile, habilidades, resenas };
+  return { ok: true, detail: { profile, habilidades, resenas } };
 }

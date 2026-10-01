@@ -10,6 +10,8 @@ export type PublicProfessional = {
   total_jobs_done: number;
   avatar: string | null;
   zona: string | null;
+  /** Distancia gruesa que manda el backend. No se calcula con lat/lng. */
+  distancia: string | null;
   all_trades?: string[];
 };
 
