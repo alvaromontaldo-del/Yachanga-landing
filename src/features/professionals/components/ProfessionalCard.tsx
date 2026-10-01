@@ -51,11 +51,18 @@ export function ProfessionalCard({ professional, onOpenProfile, onContact }: Pro
                 completedJobs={professional.total_jobs_done}
               />
             </div>
-            {professional.zona ? (
-              <p className="mt-2 inline-flex items-center gap-1 text-xs text-yachanga-muted">
-                <MapPin className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                <span className="truncate">{professional.zona}</span>
-              </p>
+            {professional.zona || professional.distancia ? (
+              <div className="mt-2 space-y-1">
+                {professional.zona ? (
+                  <p className="inline-flex max-w-full items-center gap-1 text-xs text-yachanga-muted">
+                    <MapPin className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                    <span className="truncate">{professional.zona}</span>
+                  </p>
+                ) : null}
+                {professional.distancia ? (
+                  <p className="text-xs text-yachanga-muted">{professional.distancia}</p>
+                ) : null}
+              </div>
             ) : null}
           </div>
         </div>

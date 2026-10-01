@@ -19,25 +19,38 @@ function formatReviewDate(iso: string): string {
 }
 
 export function ProfessionalProfileModal({ professional, open, onClose, onContact }: Props) {
-  const [detail, setDetail] = useState<PublicProfessionalDetail | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+  const [snapshot, setSnapshot] = useState<{
+    key: string;
+    phase: 'ready' | 'missing' | 'error';
+    detail: PublicProfessionalDetail | null;
+  } | null>(null);
+
+  const requestKey = open && professional ? `${professional.id}:${attempt}` : '';
+  const current = snapshot?.key === requestKey ? snapshot : null;
+  const phase = current?.phase ?? 'loading';
+  const detail = current?.detail ?? null;
 
   useEffect(() => {
-    if (!open || !professional) {
-      setDetail(null);
-      return;
-    }
+    if (!open || !professional || !requestKey) return;
     let cancelled = false;
-    setLoading(true);
-    void fetchPublicProfessionalDetail(professional.id).then((d) => {
+    const key = requestKey;
+    void fetchPublicProfessionalDetail(professional.id).then((result) => {
       if (cancelled) return;
-      setDetail(d);
-      setLoading(false);
+      if (!result.ok) {
+        setSnapshot({ key, phase: 'error', detail: null });
+        return;
+      }
+      setSnapshot({
+        key,
+        phase: result.detail ? 'ready' : 'missing',
+        detail: result.detail,
+      });
     });
     return () => {
       cancelled = true;
     };
-  }, [open, professional]);
+  }, [open, professional, requestKey]);
 
   useEffect(() => {
     if (!open) return;
@@ -95,11 +108,18 @@ export function ProfessionalProfileModal({ professional, open, onClose, onContac
                   completedJobs={profile.total_jobs_done}
                 />
               </div>
-              {profile.zona ? (
-                <p className="mt-1 inline-flex items-center gap-1 text-xs text-yachanga-muted">
-                  <MapPin className="h-3.5 w-3.5" aria-hidden />
-                  {profile.zona}
-                </p>
+              {profile.zona || profile.distancia ? (
+                <div className="mt-1 space-y-0.5">
+                  {profile.zona ? (
+                    <p className="inline-flex items-center gap-1 text-xs text-yachanga-muted">
+                      <MapPin className="h-3.5 w-3.5" aria-hidden />
+                      {profile.zona}
+                    </p>
+                  ) : null}
+                  {profile.distancia ? (
+                    <p className="text-xs text-yachanga-muted">{profile.distancia}</p>
+                  ) : null}
+                </div>
               ) : null}
             </div>
           </div>
@@ -114,12 +134,26 @@ export function ProfessionalProfileModal({ professional, open, onClose, onContac
         </div>
 
         <div className="flex-1 space-y-6 overflow-y-auto px-5 py-5">
-          {loading ? (
+          {phase === 'loading' ? (
             <div className="space-y-3 animate-pulse" aria-busy="true">
               <div className="h-4 w-full rounded bg-yachanga-border" />
               <div className="h-4 w-4/5 rounded bg-yachanga-border" />
               <div className="h-20 w-full rounded-xl bg-yachanga-border" />
             </div>
+          ) : phase === 'error' ? (
+            <div className="rounded-xl border border-dashed border-yachanga-border px-4 py-8 text-center" role="alert">
+              <p className="text-sm font-semibold text-yachanga-text">No pudimos cargar este perfil.</p>
+              <p className="mt-2 text-sm text-yachanga-muted">Probá de nuevo en un momento.</p>
+              <button
+                type="button"
+                onClick={() => setAttempt((value) => value + 1)}
+                className="mt-4 inline-flex min-h-[44px] items-center justify-center rounded-xl bg-yachanga-primary px-5 text-sm font-semibold text-white hover:bg-yachanga-primary-dark"
+              >
+                Reintentar
+              </button>
+            </div>
+          ) : phase === 'missing' ? (
+            <p className="text-sm text-yachanga-muted">Este perfil no está disponible.</p>
           ) : (
             <>
               <section>

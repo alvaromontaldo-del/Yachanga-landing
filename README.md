@@ -92,7 +92,7 @@ Búsqueda pública sin login: perfiles, oficios, rating y reseñas. **Contactar*
 
 Requiere en Supabase la migración `20260903140000_public_workers_storefront.sql` del repo de la app (`search_workers_public`, `get_public_worker_profile`, `list_public_worker_categories`).
 
-Sin `VITE_SUPABASE_*` configurado, la sección usa datos mock locales.
+Sin `VITE_SUPABASE_*` configurado, o si la búsqueda falla, la sección muestra un error con «Reintentar». No usa profesionales de ejemplo. Si la RPC responde sin filas, muestra el estado vacío.
 
 ## Estructura
 
