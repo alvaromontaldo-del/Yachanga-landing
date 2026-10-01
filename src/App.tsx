@@ -1,4 +1,5 @@
 import { AccountConfirmedHandler } from './components/AccountConfirmedHandler';
+import { Faq } from './components/Faq';
 import { FeaturesClient } from './components/FeaturesClient';
 import { FeaturesWorker } from './components/FeaturesWorker';
 import { Footer } from './components/Footer';
@@ -14,6 +15,7 @@ export default function App() {
         <ProfessionalsSearchSection />
         <FeaturesWorker />
         <FeaturesClient />
+        <Faq />
       </main>
       <Footer />
     </div>
